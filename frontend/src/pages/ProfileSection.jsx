@@ -1,119 +1,18 @@
 // ProfileSection.jsx
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-// Database simulation for profile data and memories
-const createDatabase = () => {
-  // In a real application, this would connect to an actual database
-  return {
-    profiles: {
-      'default': {
-        id: 'default',
-        username: 'artbyzefa',
-        displayName: 'zefa',
-        bio: 'Ranjish he sahi "Dil he Dukhane ke liay Aaah"',
-        website: 'www.artbyzefa.today',
-        localHost: '127.0.0.1',
-        socialHandle: '@_huzaifa0900',
-        profileImage: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-        coverImage: 'https://images.unsplash.com/photo-1579546929662-711aa81148cf?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-        notesCount: 12,
-        pdfCount: 5,
-        otherCount: 8,
-        joinDate: '2023-01-15',
-        lastActive: '2025-11-05T12:04:53Z'
-      }
-    },
-    memories: {
-      'default': [
-        {
-          id: 'memory-1',
-          title: 'Project Documentation',
-          type: 'PDF',
-          description: 'Complete project documentation with specifications and requirements',
-          fileUrl: '#',
-          uploadDate: '2025-10-28',
-          tags: ['documentation', 'project', 'specs'],
-          size: '2.4 MB',
-          favorite: true
-        },
-        {
-          id: 'memory-2',
-          title: 'Meeting Notes - Client Review',
-          type: 'Note',
-          description: 'Detailed notes from the client review meeting with action items',
-          fileUrl: '#',
-          uploadDate: '2025-10-25',
-          tags: ['meeting', 'client', 'action-items'],
-          size: '156 KB',
-          favorite: false
-        },
-        {
-          id: 'memory-3',
-          title: 'Design Inspiration Collection',
-          type: 'Other',
-          description: 'Curated collection of design references and inspiration',
-          fileUrl: '#',
-          uploadDate: '2025-10-20',
-          tags: ['design', 'inspiration', 'references'],
-          size: '15.7 MB',
-          favorite: true
-        },
-        {
-          id: 'memory-4',
-          title: 'Technical Specifications',
-          type: 'PDF',
-          description: 'Detailed technical specifications for the upcoming project',
-          fileUrl: '#',
-          uploadDate: '2025-10-18',
-          tags: ['technical', 'specs', 'development'],
-          size: '3.1 MB',
-          favorite: false
-        },
-        {
-          id: 'memory-5',
-          title: 'Brainstorming Session',
-          type: 'Note',
-          description: 'Ideas and concepts from the team brainstorming session',
-          fileUrl: '#',
-          uploadDate: '2025-10-15',
-          tags: ['brainstorming', 'ideas', 'concepts'],
-          size: '89 KB',
-          favorite: true
-        },
-        {
-          id: 'memory-6',
-          title: 'Resource Library',
-          type: 'Other',
-          description: 'Collection of useful resources and tools for the project',
-          fileUrl: '#',
-          uploadDate: '2025-10-10',
-          tags: ['resources', 'tools', 'library'],
-          size: '8.2 MB',
-          favorite: false
-        }
-      ]
-    },
-    settings: {
-      theme: 'dark',
-      layout: 'grid',
-      itemsPerPage: 6,
-      sortBy: 'date',
-      sortOrder: 'desc'
-    }
-  };
-};
-
-// Database operations
-const database = createDatabase();
+const API_BASE_URL = 'http://localhost:5000/api';
 
 // Utility functions
 const formatDate = (dateString) => {
+  if (!dateString) return 'No date';
   const options = { year: 'numeric', month: 'long', day: 'numeric' };
   return new Date(dateString).toLocaleDateString(undefined, options);
 };
 
 const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes';
+  if (!bytes || bytes === 0) return '0 Bytes';
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -168,35 +67,66 @@ const ProfileSection = () => {
   const [memories, setMemories] = useState([]);
   const [filteredMemories, setFilteredMemories] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all');
-  const [layout, setLayout] = useState(database.settings.layout);
-  const [sortBy, setSortBy] = useState(database.settings.sortBy);
-  const [sortOrder, setSortOrder] = useState(database.settings.sortOrder);
+  const [layout, setLayout] = useState('grid');
+  const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(database.settings.itemsPerPage);
+  const [itemsPerPage] = useState(6);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const navigate = useNavigate();
 
-  // Load profile and memories on component mount
+  // Load profile and memories from API
   useEffect(() => {
-    const loadProfileData = () => {
-      setProfile(database.profiles.default);
-      setMemories(database.memories.default);
-      setFilteredMemories(database.memories.default);
-      
-      // Extract all unique tags from memories
-      const tags = [...new Set(database.memories.default.flatMap(memory => memory.tags))];
-      setAvailableTags(tags);
-      
-      // Initialize edit form with current profile data
-      setEditForm({ ...database.profiles.default });
+    const loadProfileData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          navigate('/');
+          return;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/profile`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch profile');
+        }
+
+        const data = await response.json();
+        
+        if (data.success) {
+          setProfile(data.data.profile);
+          setMemories(data.data.memories || []);
+          setFilteredMemories(data.data.memories || []);
+          
+          // Extract all unique tags from memories
+          const tags = [...new Set((data.data.memories || []).flatMap(memory => memory.tags || []))];
+          setAvailableTags(tags);
+          
+          // Initialize edit form with current profile data
+          setEditForm({ ...data.data.profile });
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+        alert('Failed to load profile data');
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadProfileData();
-  }, []);
+  }, [navigate]);
 
   // Filter and sort memories when filters, sort options, or search query change
   useEffect(() => {
@@ -213,14 +143,14 @@ const ProfileSection = () => {
       filtered = filtered.filter(memory => 
         memory.title.toLowerCase().includes(query) || 
         memory.description.toLowerCase().includes(query) ||
-        memory.tags.some(tag => tag.toLowerCase().includes(query))
+        (memory.tags && memory.tags.some(tag => tag.toLowerCase().includes(query)))
       );
     }
     
     // Apply tag filter
     if (selectedTags.length > 0) {
       filtered = filtered.filter(memory => 
-        selectedTags.some(tag => memory.tags.includes(tag))
+        memory.tags && selectedTags.some(tag => memory.tags.includes(tag))
       );
     }
     
@@ -238,8 +168,9 @@ const ProfileSection = () => {
           bValue = new Date(b.uploadDate);
           break;
         case 'size':
-          aValue = parseFloat(a.size);
-          bValue = parseFloat(b.size);
+          // Extract numeric value from size string (e.g., "2.4 MB" -> 2.4)
+          aValue = parseFloat(a.size) || 0;
+          bValue = parseFloat(b.size) || 0;
           break;
         default:
           aValue = a.title.toLowerCase();
@@ -294,11 +225,32 @@ const ProfileSection = () => {
     setIsEditing(true);
   };
 
-  // Handle save profile
-  const handleSaveProfile = () => {
-    // In a real application, this would update the database
-    setProfile(editForm);
-    setIsEditing(false);
+  // Handle save profile with API call
+  const handleSaveProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/profile`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(editForm)
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setProfile(data.data.profile);
+        setIsEditing(false);
+        alert('Profile updated successfully!');
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('Failed to update profile');
+    }
   };
 
   // Handle cancel edit
@@ -316,44 +268,90 @@ const ProfileSection = () => {
     }));
   };
 
-  // Handle file upload
-  const handleFileUpload = (e) => {
+  // Handle file upload with API call
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
     setIsUploading(true);
     
-    // Simulate file upload
-    setTimeout(() => {
-      const newMemory = {
-        id: `memory-${Date.now()}`,
+    try {
+      const token = localStorage.getItem('token');
+      
+      // For now, we'll simulate file upload since we don't have actual file storage
+      // In a real app, you'd upload the file first, then create the memory record
+      const memoryData = {
         title: file.name,
         type: file.type.includes('pdf') ? 'PDF' : file.type.includes('text') ? 'Note' : 'Other',
         description: `Uploaded ${file.name}`,
-        fileUrl: '#',
-        uploadDate: new Date().toISOString().split('T')[0],
-        tags: ['uploaded'],
-        size: formatFileSize(file.size),
-        favorite: false
+        fileUrl: '#', // This would be the actual file URL after upload
+        fileName: file.name,
+        fileSize: formatFileSize(file.size),
+        tags: ['uploaded']
       };
+
+      const response = await fetch(`${API_BASE_URL}/memories`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(memoryData)
+      });
+
+      const data = await response.json();
       
-      setMemories(prev => [newMemory, ...prev]);
+      if (data.success) {
+        setMemories(prev => [data.data.memory, ...prev]);
+        // Update profile counts locally
+        if (profile) {
+          const updatedProfile = { ...profile };
+          if (memoryData.type === 'Note') updatedProfile.notesCount += 1;
+          else if (memoryData.type === 'PDF') updatedProfile.pdfCount += 1;
+          else updatedProfile.otherCount += 1;
+          setProfile(updatedProfile);
+        }
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Failed to upload file');
+    } finally {
       setIsUploading(false);
-      
-      // Reset file input
       e.target.value = '';
-    }, 1500);
+    }
   };
 
-  // Handle memory favorite toggle
-  const handleFavoriteToggle = (memoryId) => {
-    setMemories(prev => 
-      prev.map(memory => 
-        memory.id === memoryId 
-          ? { ...memory, favorite: !memory.favorite } 
-          : memory
-      )
-    );
+  // Handle memory favorite toggle with API call
+  const handleFavoriteToggle = async (memoryId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/memories/${memoryId}/favorite`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setMemories(prev => 
+          prev.map(memory => 
+            memory.id === memoryId 
+              ? { ...memory, favorite: !memory.favorite } 
+              : memory
+          )
+        );
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      alert('Failed to update favorite status');
+    }
   };
 
   // Handle tag selection
@@ -372,7 +370,42 @@ const ProfileSection = () => {
     setSelectedTags([]);
   };
 
-  if (!profile) {
+  // Handle back to dashboard
+  const handleBackToDashboard = () => {
+    navigate('/dashboard');
+  };
+
+  // Handle profile image change
+  const handleProfileImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setEditForm(prev => ({
+          ...prev,
+          profileImage: e.target.result
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle cover image change
+  const handleCoverImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setEditForm(prev => ({
+          ...prev,
+          coverImage: e.target.result
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
@@ -380,22 +413,62 @@ const ProfileSection = () => {
     );
   }
 
+  if (!profile) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-white mb-4">Profile Not Found</h2>
+          <button 
+            onClick={handleBackToDashboard}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans">
+      {/* Back to Dashboard Button */}
+      <div className="max-w-6xl mx-auto px-4 pt-6">
+        <button 
+          onClick={handleBackToDashboard}
+          className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg mb-4 transition-colors flex items-center"
+        >
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to Dashboard
+        </button>
+      </div>
+
       {/* Cover Photo */}
       <div className="relative h-64 bg-gradient-to-r from-purple-900 to-blue-900">
         <div 
           className="absolute inset-0 bg-cover bg-center opacity-30"
-          style={{ backgroundImage: `url(${profile.coverImage})` }}
+          style={{ 
+            backgroundImage: profile.coverImage 
+              ? `url(${profile.coverImage})` 
+              : 'none' 
+          }}
         ></div>
         <div className="absolute bottom-4 right-4">
-          <button className="bg-gray-800 bg-opacity-70 hover:bg-opacity-100 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center">
+          <input
+            type="file"
+            id="cover-upload"
+            className="hidden"
+            accept="image/*"
+            onChange={handleCoverImageChange}
+          />
+          <label htmlFor="cover-upload" className="bg-gray-800 bg-opacity-70 hover:bg-opacity-100 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center cursor-pointer">
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
             Change Cover
-          </button>
+          </label>
         </div>
       </div>
 
@@ -408,16 +481,30 @@ const ProfileSection = () => {
               <div className="flex flex-col items-center">
                 <div className="relative">
                   <img 
-                    src={profile.profileImage} 
-                    alt={profile.displayName}
+                    src={isEditing ? (editForm.profileImage || '/DefaultPic.jpeg') : (profile.profileImage || '/DefaultPic.jpeg')} 
+                    alt={profile.displayName || 'User'}
                     className="w-40 h-40 rounded-full border-4 border-gray-800 object-cover shadow-lg"
+                    onError={(e) => {
+                      e.target.src = '/DefaultPic.jpeg';
+                    }}
                   />
-                  <button className="absolute bottom-2 right-2 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full shadow-lg transition-colors duration-200">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </button>
+                  {isEditing && (
+                    <>
+                      <input
+                        type="file"
+                        id="profile-upload"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleProfileImageChange}
+                      />
+                      <label htmlFor="profile-upload" className="absolute bottom-2 right-2 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full shadow-lg transition-colors duration-200 cursor-pointer">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </label>
+                    </>
+                  )}
                 </div>
                 
                 {isEditing ? (
@@ -425,29 +512,41 @@ const ProfileSection = () => {
                     <input
                       type="text"
                       name="displayName"
-                      value={editForm.displayName}
+                      value={editForm.displayName || ''}
                       onChange={handleInputChange}
+                      placeholder="Display Name"
                       className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <input
                       type="text"
                       name="username"
-                      value={editForm.username}
+                      value={editForm.username || ''}
                       onChange={handleInputChange}
+                      placeholder="Username"
                       className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <textarea
                       name="bio"
-                      value={editForm.bio}
+                      value={editForm.bio || ''}
                       onChange={handleInputChange}
                       rows="3"
+                      placeholder="Bio"
                       className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <input
                       type="text"
                       name="website"
-                      value={editForm.website}
+                      value={editForm.website || ''}
                       onChange={handleInputChange}
+                      placeholder="Website"
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      type="text"
+                      name="socialHandle"
+                      value={editForm.socialHandle || ''}
+                      onChange={handleInputChange}
+                      placeholder="Social Handle"
                       className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <div className="flex space-x-2">
@@ -467,41 +566,45 @@ const ProfileSection = () => {
                   </div>
                 ) : (
                   <>
-                    <h1 className="mt-6 text-2xl font-bold">{profile.displayName}</h1>
-                    <p className="text-gray-400 mt-1">@{profile.username}</p>
-                    <p className="mt-4 text-center text-gray-300">{profile.bio}</p>
-                    <div className="mt-4 flex items-center text-sm text-gray-400">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                      </svg>
-                      <a href={`http://${profile.website}`} className="hover:text-blue-400 transition-colors duration-200">
-                        {profile.website}
-                      </a>
-                    </div>
+                    <h1 className="mt-6 text-2xl font-bold">{profile.displayName || 'No Name'}</h1>
+                    <p className="text-gray-400 mt-1">@{profile.username || 'No username'}</p>
+                    <p className="mt-4 text-center text-gray-300">{profile.bio || 'No bio available'}</p>
+                    {profile.website && (
+                      <div className="mt-4 flex items-center text-sm text-gray-400">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        <a href={`http://${profile.website}`} className="hover:text-blue-400 transition-colors duration-200" target="_blank" rel="noopener noreferrer">
+                          {profile.website}
+                        </a>
+                      </div>
+                    )}
                     <div className="mt-2 flex items-center text-sm text-gray-400">
                       <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9" />
                       </svg>
-                      <span>Local Host: {profile.localHost}</span>
+                      <span>Local Host: {profile.localHost || '127.0.0.1'}</span>
                     </div>
-                    <div className="mt-2 flex items-center text-sm text-gray-400">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      <span>{profile.socialHandle}</span>
-                    </div>
+                    {profile.socialHandle && (
+                      <div className="mt-2 flex items-center text-sm text-gray-400">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <span>{profile.socialHandle}</span>
+                      </div>
+                    )}
                     
                     <div className="mt-6 grid grid-cols-3 gap-4 w-full">
                       <div className="bg-gray-700 rounded-lg p-4 text-center">
-                        <div className="text-xl font-bold">{profile.notesCount}</div>
+                        <div className="text-xl font-bold">{profile.notesCount || 0}</div>
                         <div className="text-xs text-gray-400 mt-1">Notes</div>
                       </div>
                       <div className="bg-gray-700 rounded-lg p-4 text-center">
-                        <div className="text-xl font-bold">{profile.pdfCount}</div>
+                        <div className="text-xl font-bold">{profile.pdfCount || 0}</div>
                         <div className="text-xs text-gray-400 mt-1">PDFs</div>
                       </div>
                       <div className="bg-gray-700 rounded-lg p-4 text-center">
-                        <div className="text-xl font-bold">{profile.otherCount}</div>
+                        <div className="text-xl font-bold">{profile.otherCount || 0}</div>
                         <div className="text-xs text-gray-400 mt-1">Other</div>
                       </div>
                     </div>
@@ -713,16 +816,18 @@ const ProfileSection = () => {
                               </button>
                             </div>
                             <p className="text-gray-400 text-sm mt-1 line-clamp-2">{memory.description}</p>
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {memory.tags.map(tag => (
-                                <span 
-                                  key={tag} 
-                                  className="px-2 py-1 bg-gray-600 rounded-full text-xs text-gray-300"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
+                            {memory.tags && memory.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {memory.tags.map(tag => (
+                                  <span 
+                                    key={tag} 
+                                    className="px-2 py-1 bg-gray-600 rounded-full text-xs text-gray-300"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                             <div className="flex justify-between items-center mt-4 text-xs text-gray-500">
                               <span>{formatDate(memory.uploadDate)}</span>
                               <span>{memory.size}</span>

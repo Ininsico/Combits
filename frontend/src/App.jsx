@@ -5,6 +5,9 @@ import StudyCircleDashboard from './pages/Dashboard'
 import StudyGroupSession from './pages/StudySection'
 import ProfileSection from './pages/ProfileSection'
 import SignupPage from './pages/Signup'
+import TextSessionCreation from './pages/SessionCreation'
+import Textsession from './pages/textsession'
+import SessionTypeSelection from './pages/SessionCreation'
 
 // Simple route protection component
 const ProtectedRoute = ({ children }) => {
@@ -40,6 +43,31 @@ function App() {
             element={
               <ProtectedRoute>
                 <ProfileSection />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/TextSessionCreation" 
+            element={
+              <ProtectedRoute>
+                <TextSessionCreation />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/TextSession" 
+            element={
+              <ProtectedRoute>
+                <Textsession />
+              </ProtectedRoute>
+            } 
+          />
+          {/* Add the new route */}
+          <Route 
+            path="/SessionTypeSelection" 
+            element={
+              <ProtectedRoute>
+                <SessionTypeSelection />
               </ProtectedRoute>
             } 
           />

@@ -593,6 +593,341 @@ app.patch('/api/memories/:id/favorite', async (req, res) => {
     });
   }
 });
+// Study Session Schema
+const studySessionSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 100
+    },
+    description: {
+        type: String,
+        required: true,
+        maxlength: 1000
+    },
+    creator: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    community: {
+        type: String,
+        default: 'General'
+    },
+    subject: {
+        type: String,
+        required: true
+    },
+    tags: [{
+        type: String
+    }],
+    date: {
+        type: Date,
+        required: true
+    },
+    startTime: {
+        type: String,
+        required: true
+    },
+    endTime: {
+        type: String,
+        required: true
+    },
+    duration: {
+        type: Number
+    },
+    location: {
+        type: String,
+        required: true,
+        enum: ['Online', 'On-Campus', 'Library', 'Other']
+    },
+    specificLocation: {
+        type: String
+    },
+    maxParticipants: {
+        type: Number,
+        required: true,
+        min: 1,
+        max: 50
+    },
+    currentParticipants: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+    status: {
+        type: String,
+        enum: ['scheduled', 'ongoing', 'completed', 'cancelled'],
+        default: 'scheduled'
+    },
+    isPublic: {
+        type: Boolean,
+        default: true
+    },
+    requirements: {
+        type: String,
+        maxlength: 200
+    },
+    upvotes: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+    comments: [{
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        text: {
+            type: String,
+            required: true,
+            maxlength: 500
+        },
+        createdAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
+    views: {
+        type: Number,
+        default: 0
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+// Community Schema
+const communitySchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true,
+        maxlength: 50
+    },
+    description: {
+        type: String,
+        required: true,
+        maxlength: 500
+    },
+    icon: {
+        type: String,
+        default: '👥'
+    },
+    creator: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    members: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+    tags: [{
+        type: String
+    }],
+    category: {
+        type: String,
+        required: true,
+        enum: ['Academic', 'Technical', 'Sports', 'Cultural', 'Social', 'Other']
+    },
+    isPublic: {
+        type: Boolean,
+        default: true
+    },
+    memberCount: {
+        type: Number,
+        default: 0
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+// Create Models
+const StudySession = mongoose.model('StudySession', studySessionSchema);
+const Community = mongoose.model('Community', communitySchema);
+// Study Session Routes
+app.post('/api/sessions', async (req, res) => {
+    try {
+        const {
+            title,
+            description,
+            community = 'General',
+            subject,
+            tags = [],
+            date,
+            startTime,
+            endTime,
+            location,
+            specificLocation,
+            maxParticipants,
+            requirements,
+            isPublic = true
+        } = req.body;
+
+        // For now, create session without authentication
+        // In production, you'd use authenticateToken middleware
+        const session = new StudySession({
+            title,
+            description,
+            community,
+            subject,
+            tags,
+            date: new Date(date),
+            startTime,
+            endTime,
+            location,
+            specificLocation,
+            maxParticipants,
+            requirements,
+            isPublic,
+            currentParticipants: []
+        });
+
+        await session.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'Study session created successfully',
+            data: { session }
+        });
+    } catch (error) {
+        console.error('Create session error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error creating session'
+        });
+    }
+});
+
+app.get('/api/sessions', async (req, res) => {
+    try {
+        const sessions = await StudySession.find({ isPublic: true })
+            .populate('currentParticipants', 'fullName avatar rollNo')
+            .sort({ createdAt: -1 });
+
+        res.json({
+            success: true,
+            data: { sessions }
+        });
+    } catch (error) {
+        console.error('Get sessions error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error fetching sessions'
+        });
+    }
+});
+
+app.get('/api/sessions/ongoing', async (req, res) => {
+    try {
+        const sessions = await StudySession.find({
+            status: 'ongoing',
+            isPublic: true
+        })
+        .populate('currentParticipants', 'fullName avatar')
+        .sort({ createdAt: -1 })
+        .limit(10);
+
+        res.json({
+            success: true,
+            data: { sessions }
+        });
+    } catch (error) {
+        console.error('Get ongoing sessions error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error fetching ongoing sessions'
+        });
+    }
+});
+
+// Community Routes
+app.post('/api/communities', async (req, res) => {
+    try {
+        const { name, description, icon, category, tags = [], isPublic = true } = req.body;
+
+        const existingCommunity = await Community.findOne({ name });
+        if (existingCommunity) {
+            return res.status(400).json({
+                success: false,
+                message: 'Community with this name already exists'
+            });
+        }
+
+        const community = new Community({
+            name,
+            description,
+            icon,
+            category,
+            tags,
+            isPublic,
+            memberCount: 0
+        });
+
+        await community.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'Community created successfully',
+            data: { community }
+        });
+    } catch (error) {
+        console.error('Create community error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error creating community'
+        });
+    }
+});
+
+app.get('/api/communities', async (req, res) => {
+    try {
+        const communities = await Community.find({ isPublic: true })
+            .sort({ memberCount: -1 });
+
+        res.json({
+            success: true,
+            data: { communities }
+        });
+    } catch (error) {
+        console.error('Get communities error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error fetching communities'
+        });
+    }
+});
+
+// Simple session join endpoint
+app.post('/api/sessions/:id/join', async (req, res) => {
+    try {
+        const session = await StudySession.findById(req.params.id);
+
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                message: 'Session not found'
+            });
+        }
+
+        // For demo purposes, just return success
+        // In production, you'd add user to participants array
+        res.json({
+            success: true,
+            message: 'Successfully joined the session'
+        });
+    } catch (error) {
+        console.error('Join session error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error joining session'
+        });
+    }
+});
 
 app.use((req, res) => {
     res.status(404).json({
