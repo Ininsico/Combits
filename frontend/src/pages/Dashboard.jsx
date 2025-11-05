@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const StudyCircleDashboard = () => {
   const [activeTab, setActiveTab] = useState('feed');
@@ -7,86 +8,48 @@ const StudyCircleDashboard = () => {
   const [user, setUser] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [newPost, setNewPost] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock data - in real app, this would come from API
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Get user data from localStorage
   useEffect(() => {
-    // Mock user data
-    setUser({
-      name: 'Alex Johnson',
-      username: '@alexj',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
-      major: 'Computer Science',
-      semester: '3rd Semester',
-      followers: 245,
-      following: 189
-    });
-
-    // Mock study sessions
-    setStudySessions([
-      {
-        id: 1,
-        title: 'Advanced Calculus Study Group',
-        description: 'Working through differential equations and limits. Bring your textbooks and calculators!',
-        community: 'Mathematics Enthusiasts',
-        date: '2024-01-15',
-        time: '14:00 - 16:00',
-        location: 'Library Room 302',
-        participants: 12,
-        maxParticipants: 20,
-        creator: 'Dr. Smith',
-        creatorAvatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=40&h=40&fit=crop&crop=face',
-        tags: ['calculus', 'math', 'study-group'],
-        upvotes: 24,
-        comments: 8,
-        reposts: 3,
-        views: '1.2K',
-        isLiked: false,
-        isBookmarked: false
-      },
-      {
-        id: 2,
-        title: 'Organic Chemistry Lab Prep',
-        description: 'Preparing for upcoming lab experiments. We\'ll review safety protocols and procedures.',
-        community: 'Chemistry Club',
-        date: '2024-01-16',
-        time: '10:00 - 12:00',
-        location: 'Science Building Lab 4',
-        participants: 8,
-        maxParticipants: 15,
-        creator: 'Sarah Chen',
-        creatorAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=40&h=40&fit=crop&crop=face',
-        tags: ['chemistry', 'lab', 'science'],
-        upvotes: 18,
-        comments: 5,
-        reposts: 1,
-        views: '890',
-        isLiked: true,
-        isBookmarked: false
+    const initializeUser = () => {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        const userData = JSON.parse(savedUser);
+        setUser(userData);
+      } else {
+        // If no user data, redirect to login
+        navigate('/');
+        return;
       }
-    ]);
+    };
 
-    // Mock communities
-    setCommunities([
-      {
-        id: 1,
-        name: 'Mathematics Enthusiasts',
-        members: 245,
-        description: 'For students who love numbers and problem solving',
-        icon: '🧮',
-        recentActivity: '2 hours ago',
-        isJoined: true
-      },
-      {
-        id: 2,
-        name: 'Chemistry Club',
-        members: 189,
-        description: 'Exploring the world of molecules and reactions',
-        icon: '🧪',
-        recentActivity: '1 hour ago',
-        isJoined: false
-      }
-    ]);
-  }, []);
+    initializeUser();
+    
+    // Simulate API call delay
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
+  }, [navigate]);
+
+  // Generate user avatar based on name if no avatar URL
+  const getUserAvatar = (userData) => {
+    if (userData.avatar) return userData.avatar;
+    
+    // Use default picture from public folder
+    return '/DefaultPic.jpeg';
+  };
+
+  // Generate username from email or roll number
+  const getUsername = (userData) => {
+    if (userData.email) {
+      return userData.email.split('@')[0];
+    }
+    return userData.rollNo ? `@${userData.rollNo}` : '@user';
+  };
 
   const handleLike = (sessionId) => {
     setStudySessions(sessions => 
@@ -135,8 +98,8 @@ const StudyCircleDashboard = () => {
       location: 'Online',
       participants: 0,
       maxParticipants: 10,
-      creator: user.name,
-      creatorAvatar: user.avatar,
+      creator: user.fullName,
+      creatorAvatar: getUserAvatar(user),
       tags: ['new'],
       upvotes: 0,
       comments: 0,
@@ -148,6 +111,14 @@ const StudyCircleDashboard = () => {
 
     setStudySessions(prev => [newSession, ...prev]);
     setNewPost('');
+  };
+
+  const handleCreateSession = () => {
+    navigate('/GroupSession');
+  };
+
+  const handleProfileClick = () => {
+    navigate('/ProfileSection');
   };
 
   const Sidebar = () => (
@@ -177,7 +148,13 @@ const StudyCircleDashboard = () => {
           ].map(item => (
             <li key={item.id}>
               <button
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  if (item.id === 'profile') {
+                    handleProfileClick();
+                  } else {
+                    setActiveTab(item.id);
+                  }
+                }}
                 className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-200 flex items-center space-x-3 ${
                   activeTab === item.id 
                     ? 'text-white bg-blue-600' 
@@ -196,25 +173,35 @@ const StudyCircleDashboard = () => {
         </ul>
       </nav>
 
-      {/* Post Button */}
+      {/* Create Session Button */}
       <div className="p-4">
-        <button className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors duration-200 font-bold text-lg">
+        <button 
+          onClick={handleCreateSession}
+          className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors duration-200 font-bold text-lg"
+        >
           Create Session
         </button>
       </div>
 
       {/* User Profile */}
       {user && (
-        <div className="absolute bottom-4 left-4 right-4 p-3 rounded-lg hover:bg-gray-800 transition-colors duration-200 cursor-pointer">
+        <div 
+          className="absolute bottom-4 left-4 right-4 p-3 rounded-lg hover:bg-gray-800 transition-colors duration-200 cursor-pointer"
+          onClick={handleProfileClick}
+        >
           <div className="flex items-center space-x-3">
             <img 
-              src={user.avatar} 
-              alt={user.name}
+              src={getUserAvatar(user)} 
+              alt={user.fullName || 'User'}
               className="w-10 h-10 rounded-full object-cover"
             />
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-white truncate">{user.name}</p>
-              <p className="text-sm text-gray-400 truncate">{user.username}</p>
+              <p className="font-bold text-white truncate">
+                {user.fullName || 'User'}
+              </p>
+              <p className="text-sm text-gray-400 truncate">
+                {getUsername(user)}
+              </p>
             </div>
             <MoreIcon className="w-5 h-5 text-gray-400" />
           </div>
@@ -312,30 +299,40 @@ const StudyCircleDashboard = () => {
     <div className="rounded-2xl bg-gray-800 overflow-hidden">
       <h3 className="font-bold text-xl text-white p-4 border-b border-gray-700">Ongoing Sessions</h3>
       <div className="divide-y divide-gray-700">
-        {studySessions.slice(0, 3).map((session) => (
-          <div key={session.id} className="p-4 hover:bg-gray-700 transition-colors duration-200 cursor-pointer">
-            <div className="flex items-start space-x-3">
-              <div className="w-3 h-3 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-white text-sm mb-1">{session.title}</h4>
-                <p className="text-gray-400 text-xs mb-2">{session.community}</p>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-400">{session.time}</span>
-                  <span className="text-blue-400">{session.participants} joined</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
-                  <div 
-                    className="bg-green-500 h-1.5 rounded-full" 
-                    style={{ width: `${(session.participants / session.maxParticipants) * 100}%` }}
-                  ></div>
+        {studySessions.length > 0 ? (
+          studySessions.slice(0, 3).map((session) => (
+            <div key={session.id} className="p-4 hover:bg-gray-700 transition-colors duration-200 cursor-pointer">
+              <div className="flex items-start space-x-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-semibold text-white text-sm mb-1">{session.title}</h4>
+                  <p className="text-gray-400 text-xs mb-2">{session.community}</p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">{session.time}</span>
+                    <span className="text-blue-400">{session.participants} joined</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
+                    <div 
+                      className="bg-green-500 h-1.5 rounded-full" 
+                      style={{ width: `${(session.participants / session.maxParticipants) * 100}%` }}
+                    ></div>
+                  </div>
                 </div>
               </div>
             </div>
+          ))
+        ) : (
+          <div className="p-6 text-center">
+            <p className="text-gray-400">No ongoing sessions</p>
+            <p className="text-gray-500 text-sm mt-1">Be the first to create one!</p>
           </div>
-        ))}
+        )}
       </div>
-      <button className="w-full p-4 text-blue-500 hover:bg-gray-700 transition-colors duration-200 text-left border-t border-gray-700">
-        View all sessions
+      <button 
+        onClick={handleCreateSession}
+        className="w-full p-4 text-blue-500 hover:bg-gray-700 transition-colors duration-200 text-left border-t border-gray-700"
+      >
+        Create a session
       </button>
     </div>
   );
@@ -361,30 +358,37 @@ const StudyCircleDashboard = () => {
       <div className="rounded-2xl bg-gray-800 overflow-hidden">
         <h3 className="font-bold text-xl text-white p-4 border-b border-gray-700">Trending Communities</h3>
         <div className="divide-y divide-gray-700">
-          {communities.map((community) => (
-            <div key={community.id} className="p-4 hover:bg-gray-700 transition-colors duration-200 cursor-pointer">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl">{community.icon}</span>
-                  <div>
-                    <h4 className="font-semibold text-white">{community.name}</h4>
-                    <p className="text-sm text-gray-400">{community.members} members</p>
+          {communities.length > 0 ? (
+            communities.map((community) => (
+              <div key={community.id} className="p-4 hover:bg-gray-700 transition-colors duration-200 cursor-pointer">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">{community.icon}</span>
+                    <div>
+                      <h4 className="font-semibold text-white">{community.name}</h4>
+                      <p className="text-sm text-gray-400">{community.members} members</p>
+                    </div>
                   </div>
+                  <button 
+                    onClick={() => handleJoinCommunity(community.id)}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors duration-200 ${
+                      community.isJoined 
+                        ? 'bg-gray-700 text-white hover:bg-gray-600' 
+                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                    }`}
+                  >
+                    {community.isJoined ? 'Joined' : 'Join'}
+                  </button>
                 </div>
-                <button 
-                  onClick={() => handleJoinCommunity(community.id)}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors duration-200 ${
-                    community.isJoined 
-                      ? 'bg-gray-700 text-white hover:bg-gray-600' 
-                      : 'bg-blue-500 text-white hover:bg-blue-600'
-                  }`}
-                >
-                  {community.isJoined ? 'Joined' : 'Join'}
-                </button>
+                <p className="text-sm text-gray-300 mt-2">{community.description}</p>
               </div>
-              <p className="text-sm text-gray-300 mt-2">{community.description}</p>
+            ))
+          ) : (
+            <div className="p-6 text-center">
+              <p className="text-gray-400">No communities yet</p>
+              <p className="text-gray-500 text-sm mt-1">Communities will appear here</p>
             </div>
-          ))}
+          )}
         </div>
         <button className="w-full p-4 text-blue-500 hover:bg-gray-700 transition-colors duration-200 text-left border-t border-gray-700">
           Discover more
@@ -404,7 +408,7 @@ const StudyCircleDashboard = () => {
       <div className="border-b border-gray-700 p-4">
         <div className="flex space-x-4">
           <img 
-            src={user?.avatar} 
+            src={user ? getUserAvatar(user) : '/DefaultPic.png'} 
             alt="Your avatar"
             className="w-12 h-12 rounded-full object-cover flex-shrink-0"
           />
@@ -442,75 +446,93 @@ const StudyCircleDashboard = () => {
 
       {/* Sessions Feed */}
       <div>
-        {studySessions.map(session => (
-          <TweetCard key={session.id} session={session} />
-        ))}
+        {studySessions.length > 0 ? (
+          studySessions.map(session => (
+            <TweetCard key={session.id} session={session} />
+          ))
+        ) : (
+          <div className="p-8 text-center">
+            <div className="text-gray-400 text-lg mb-2">No study sessions yet</div>
+            <p className="text-gray-500 mb-4">Be the first to share a study session!</p>
+            <button 
+              onClick={handleCreateSession}
+              className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors duration-200"
+            >
+              Create First Session
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const ExploreView = () => (
+    <div className="max-w-2xl border-x border-gray-700 min-h-screen">
+      <div className="p-4 border-b border-gray-700 sticky top-0 bg-gray-900">
+        <h2 className="text-2xl font-bold text-white">Explore Communities</h2>
+      </div>
+      <div className="p-6">
+        {communities.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {communities.map(community => (
+              <div key={community.id} className="bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition-colors duration-200">
+                <div className="flex items-center space-x-3 mb-3">
+                  <span className="text-3xl">{community.icon}</span>
+                  <div>
+                    <h3 className="font-bold text-white">{community.name}</h3>
+                    <p className="text-gray-400 text-sm">{community.members} members</p>
+                  </div>
+                </div>
+                <p className="text-gray-300 text-sm mb-3">{community.description}</p>
+                <button 
+                  onClick={() => handleJoinCommunity(community.id)}
+                  className={`w-full rounded-lg py-2 text-sm font-semibold transition-colors duration-200 ${
+                    community.isJoined 
+                      ? 'bg-gray-700 text-white hover:bg-gray-600' 
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }`}
+                >
+                  {community.isJoined ? 'Leave Community' : 'Join Community'}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <div className="text-gray-400 text-lg mb-2">No communities available</div>
+            <p className="text-gray-500">Communities will appear here when created</p>
+          </div>
+        )}
       </div>
     </div>
   );
 
   const renderMainContent = () => {
+    if (isLoading) {
+      return (
+        <div className="max-w-2xl border-x border-gray-700 min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading...</p>
+          </div>
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case 'feed':
         return <FeedView />;
       case 'explore':
+        return <ExploreView />;
+      case 'notifications':
+      case 'messages':
+      case 'communities':
         return (
-          <div className="max-w-2xl border-x border-gray-700 min-h-screen">
-            <div className="p-4 border-b border-gray-700 sticky top-0 bg-gray-900">
-              <h2 className="text-2xl font-bold text-white">Explore Communities</h2>
+          <div className="max-w-2xl border-x border-gray-700 min-h-screen flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-gray-400 text-lg">Coming Soon</p>
+              <p className="text-gray-500">This feature is under development</p>
             </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {communities.map(community => (
-                  <div key={community.id} className="bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition-colors duration-200">
-                    <div className="flex items-center space-x-3 mb-3">
-                      <span className="text-3xl">{community.icon}</span>
-                      <div>
-                        <h3 className="font-bold text-white">{community.name}</h3>
-                        <p className="text-gray-400 text-sm">{community.members} members</p>
-                      </div>
-                    </div>
-                    <p className="text-gray-300 text-sm mb-3">{community.description}</p>
-                    <button 
-                      onClick={() => handleJoinCommunity(community.id)}
-                      className={`w-full rounded-lg py-2 text-sm font-semibold transition-colors duration-200 ${
-                        community.isJoined 
-                          ? 'bg-gray-700 text-white hover:bg-gray-600' 
-                          : 'bg-blue-500 text-white hover:bg-blue-600'
-                      }`}
-                    >
-                      {community.isJoined ? 'Leave Community' : 'Join Community'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-      case 'profile':
-        return (
-          <div className="max-w-2xl border-x border-gray-700 min-h-screen">
-            <div className="p-4 border-b border-gray-700 sticky top-0 bg-gray-900">
-              <h2 className="text-2xl font-bold text-white">Profile</h2>
-            </div>
-            {user && (
-              <div className="p-6">
-                <div className="flex items-center space-x-6">
-                  <img src={user.avatar} alt={user.name} className="w-24 h-24 rounded-full" />
-                  <div>
-                    <h3 className="text-2xl font-bold text-white">{user.name}</h3>
-                    <p className="text-gray-400">{user.username}</p>
-                    <div className="flex space-x-4 mt-2">
-                      <span className="text-gray-300">{user.followers} Followers</span>
-                      <span className="text-gray-300">{user.following} Following</span>
-                    </div>
-                    <div className="mt-2">
-                      <p className="text-gray-300">{user.major} · {user.semester}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         );
       default:
@@ -537,7 +559,7 @@ const StudyCircleDashboard = () => {
   );
 };
 
-// SVG Icon Components (same as before but updated for new design)
+// SVG Icon Components (keep all the same icon components from your original code)
 const HomeIcon = ({ className, active }) => (
   <svg className={className} fill={active ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24" style={{ color: active ? '#FFFFFF' : '#9CA3AF' }}>
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2 : 1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />

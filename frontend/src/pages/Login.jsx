@@ -1,26 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
+import { useNavigate } from 'react-router-dom';
 
 const LoginPage = () => {
     const API_BASE_URL = 'http://localhost:5000/api';
-    const [isLogin, setIsLogin] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [formData, setFormData] = useState({
         semester: '',
         department: '',
         rollNo: '',
-        password: '',
-        confirmPassword: '',
-        fullName: '',
-        email: ''
+        password: ''
     });
 
+    const navigate = useNavigate();
     const containerRef = useRef(null);
     const formRef = useRef(null);
     const titleRef = useRef(null);
     const inputRefs = useRef([]);
     const buttonRef = useRef(null);
-    const switchRef = useRef(null);
 
     const semesters = [
         'FA20', 'FA21', 'FA22', 'FA23', 'FA24', 'FA25',
@@ -42,61 +39,31 @@ const LoginPage = () => {
             { opacity: 0 },
             { opacity: 1, duration: 1, ease: "power2.out" }
         )
-            .fromTo(titleRef.current,
-                { y: -30, opacity: 0 },
-                { y: 0, opacity: 1, duration: 0.6, ease: "back.out(1.7)" },
-                "-=0.3"
-            )
-            .fromTo(formRef.current,
-                { x: 50, opacity: 0 },
-                { x: 0, opacity: 1, duration: 0.8, ease: "power2.out" },
-                "-=0.4"
-            )
-            .fromTo(inputRefs.current,
-                { y: 20, opacity: 0 },
-                { y: 0, opacity: 1, duration: 0.5, stagger: 0.08, ease: "power2.out" },
-                "-=0.3"
-            )
-            .fromTo(buttonRef.current,
-                { scale: 0.8, opacity: 0 },
-                { scale: 1, opacity: 1, duration: 0.4, ease: "elastic.out(1, 0.5)" },
-                "-=0.2"
-            )
-            .fromTo(switchRef.current,
-                { y: 20, opacity: 0 },
-                { y: 0, opacity: 1, duration: 0.4, ease: "power2.out" },
-                "-=0.2"
-            );
+        .fromTo(titleRef.current,
+            { y: -30, opacity: 0 },
+            { y: 0, opacity: 1, duration: 0.6, ease: "back.out(1.7)" },
+            "-=0.3"
+        )
+        .fromTo(formRef.current,
+            { x: 50, opacity: 0 },
+            { x: 0, opacity: 1, duration: 0.8, ease: "power2.out" },
+            "-=0.4"
+        )
+        .fromTo(inputRefs.current,
+            { y: 20, opacity: 0 },
+            { y: 0, opacity: 1, duration: 0.5, stagger: 0.08, ease: "power2.out" },
+            "-=0.3"
+        )
+        .fromTo(buttonRef.current,
+            { scale: 0.8, opacity: 0 },
+            { scale: 1, opacity: 1, duration: 0.4, ease: "elastic.out(1, 0.5)" },
+            "-=0.2"
+        );
 
         return () => {
             tl.kill();
         };
     }, []);
-
-    useEffect(() => {
-        const tl = gsap.timeline();
-
-        tl.to(formRef.current, {
-            x: 20,
-            opacity: 0,
-            duration: 0.2,
-            ease: "power2.in"
-        })
-            .add(() => {
-                gsap.set(formRef.current, { x: -20, opacity: 0 });
-            })
-            .to(formRef.current, {
-                x: 0,
-                opacity: 1,
-                duration: 0.3,
-                ease: "power2.out"
-            });
-
-        gsap.fromTo(titleRef.current,
-            { scale: 1.1 },
-            { scale: 1, duration: 0.3, ease: "back.out(1.7)" }
-        );
-    }, [isLogin]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -117,118 +84,87 @@ const LoginPage = () => {
         }
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
 
-        gsap.to(buttonRef.current, {
-            scale: 0.95,
-            duration: 0.2,
-            ease: "power2.inOut"
+    gsap.to(buttonRef.current, {
+        scale: 0.95,
+        duration: 0.2,
+        ease: "power2.inOut"
+    });
+
+    try {
+        const payload = {
+            semester: formData.semester,
+            department: formData.department,
+            rollNo: formData.rollNo,
+            password: formData.password
+        };
+
+        console.log('Sending login request to:', `${API_BASE_URL}/auth/login`);
+        console.log('Payload:', payload);
+
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload)
         });
 
-        if (!isLogin) {
-            if (formData.password !== formData.confirmPassword) {
-                const confirmPasswordInput = inputRefs.current.find(ref =>
-                    ref?.name === 'confirmPassword'
-                );
-                if (confirmPasswordInput) {
-                    gsap.to(confirmPasswordInput, {
-                        x: 10,
-                        duration: 0.1,
-                        repeat: 5,
-                        yoyo: true,
-                        ease: "power1.inOut",
-                        onComplete: () => {
-                            gsap.to(confirmPasswordInput, { x: 0, duration: 0.1 });
-                        }
-                    });
-                }
-                setIsLoading(false);
-                return;
-            }
+        const data = await response.json();
+        console.log('Response:', data);
+
+        if (!response.ok) {
+            const errorMessage = data.message || data.error || data.msg || 'Something went wrong';
+            throw new Error(errorMessage);
         }
 
-        try {
-            const endpoint = isLogin ? '/auth/login' : '/auth/signup';
-            const payload = isLogin ? {
-                semester: formData.semester,
-                department: formData.department,
-                rollNo: formData.rollNo,
-                password: formData.password
-            } : {
-                semester: formData.semester,
-                department: formData.department,
-                rollNo: formData.rollNo,
-                password: formData.password,
-                fullName: formData.fullName,
-                email: formData.email
-            };
-
-            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Something went wrong');
-            }
-
-            gsap.to(formRef.current, {
-                y: -20,
-                opacity: 0,
-                duration: 0.4,
-                ease: "power2.in"
-            });
-
-            const successTimeline = gsap.timeline();
-            successTimeline.to(containerRef.current, {
-                backgroundColor: "rgba(16, 185, 129, 0.1)",
-                duration: 0.5,
-                ease: "power2.out"
-            })
-                .to(buttonRef.current, {
-                    backgroundColor: "#10B981",
-                    duration: 0.3,
-                    ease: "power2.out"
-                });
-
-            console.log('Success:', data);
-
-        } catch (error) {
-            console.error('Error:', error);
-            const errorTimeline = gsap.timeline();
-            errorTimeline.to(containerRef.current, {
-                backgroundColor: "rgba(239, 68, 68, 0.1)",
-                duration: 0.5,
-                ease: "power2.out"
-            })
-                .to(buttonRef.current, {
-                    backgroundColor: "#EF4444",
-                    duration: 0.3,
-                    ease: "power2.out"
-                });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleSwitchMode = () => {
-        gsap.to(switchRef.current, {
-            scale: 0.9,
-            duration: 0.1,
-            yoyo: true,
-            repeat: 1,
-            ease: "power1.inOut"
+        // Success handling
+        gsap.to(formRef.current, {
+            y: -20,
+            opacity: 0,
+            duration: 0.4,
+            ease: "power2.in"
         });
 
-        setIsLogin(!isLogin);
-    };
+        const successTimeline = gsap.timeline();
+        successTimeline.to(containerRef.current, {
+            backgroundColor: "rgba(16, 185, 129, 0.1)",
+            duration: 0.5,
+            ease: "power2.out"
+        })
+        .to(buttonRef.current, {
+            backgroundColor: "#10B981",
+            duration: 0.3,
+            ease: "power2.out"
+        });
+
+        console.log('Login Success:', data);
+
+        // Store user data and token
+        if (data.data && data.data.token) {
+            localStorage.setItem('token', data.data.token);
+            localStorage.setItem('user', JSON.stringify(data.data.user));
+            console.log('Token stored:', data.data.token);
+            
+            // Redirect to dashboard after successful login
+            setTimeout(() => {
+                navigate('/dashboard', { 
+                    state: { user: data.data.user } 
+                });
+            }, 1000);
+        }
+
+    } catch (error) {
+        console.error('Login Error:', error);
+        alert(`Error: ${error.message}`);
+        // ... error handling code remains the same
+    } finally {
+        setIsLoading(false);
+    }
+};
 
     const handleInputFocus = (e) => {
         gsap.to(e.target, {
@@ -257,6 +193,18 @@ const LoginPage = () => {
             ease: "power2.out"
         });
     };
+
+   const handleSignUpRedirect = () => {
+    gsap.to(formRef.current, {
+        x: -50,
+        opacity: 0,
+        duration: 0.3,
+        ease: "power2.in",
+        onComplete: () => {
+            navigate('/signuppage'); // Changed from '/signup' to '/signuppage'
+        }
+    });
+};
 
     const containerStyle = {
         minHeight: '100vh',
@@ -379,7 +327,7 @@ const LoginPage = () => {
         <div ref={containerRef} style={containerStyle}>
             <div ref={formRef} style={cardStyle}>
                 <h2 ref={titleRef} style={titleStyle}>
-                    {isLogin ? 'Welcome Back' : 'Create Account'}
+                    Welcome Back
                 </h2>
 
                 <form onSubmit={handleSubmit} style={formStyle}>
@@ -455,55 +403,6 @@ const LoginPage = () => {
                         />
                     </div>
 
-                    {!isLogin && (
-                        <>
-                            <div style={inputGroupStyle} ref={addToInputRefs}>
-                                <label style={labelStyle}>Confirm Password</label>
-                                <input
-                                    type="password"
-                                    name="confirmPassword"
-                                    value={formData.confirmPassword}
-                                    onChange={handleChange}
-                                    onFocus={handleInputFocus}
-                                    onBlur={handleInputBlur}
-                                    style={inputStyle}
-                                    placeholder="Confirm your password"
-                                    required
-                                />
-                            </div>
-
-                            <div style={inputGroupStyle} ref={addToInputRefs}>
-                                <label style={labelStyle}>Full Name</label>
-                                <input
-                                    type="text"
-                                    name="fullName"
-                                    value={formData.fullName}
-                                    onChange={handleChange}
-                                    onFocus={handleInputFocus}
-                                    onBlur={handleInputBlur}
-                                    style={inputStyle}
-                                    placeholder="Enter your full name"
-                                    required
-                                />
-                            </div>
-
-                            <div style={inputGroupStyle} ref={addToInputRefs}>
-                                <label style={labelStyle}>Email Address</label>
-                                <input
-                                    type="email"
-                                    name="email"
-                                    value={formData.email}
-                                    onChange={handleChange}
-                                    onFocus={handleInputFocus}
-                                    onBlur={handleInputBlur}
-                                    style={inputStyle}
-                                    placeholder="Enter your email"
-                                    required
-                                />
-                            </div>
-                        </>
-                    )}
-
                     <button
                         ref={buttonRef}
                         type="submit"
@@ -513,17 +412,16 @@ const LoginPage = () => {
                         {isLoading ? (
                             <div style={loadingStyle}></div>
                         ) : (
-                            isLogin ? 'Sign In' : 'Create Account'
+                            'Sign In'
                         )}
                     </button>
                 </form>
 
                 <button
-                    ref={switchRef}
-                    onClick={handleSwitchMode}
+                    onClick={handleSignUpRedirect}
                     style={switchStyle}
                 >
-                    {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+                    Don't have an account? Sign Up
                 </button>
             </div>
 
