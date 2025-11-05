@@ -8,7 +8,10 @@ import SignupPage from './pages/Signup'
 import TextSessionCreation from './pages/SessionCreation'
 import Textsession from './pages/textsession'
 import SessionTypeSelection from './pages/SessionCreation'
-
+import SchoolManagementLanding from './Mainpage/landingpage'
+import CUConnectPage from './Mainpage/aluminai'
+import Contact from './Mainpage/Contact'
+import AboutPage from './Mainpage/about'
 // Simple route protection component
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
@@ -20,56 +23,60 @@ function App() {
     <Router>
       <div className="App">
         <Routes>
-          <Route path="/" element={<LoginPage />} />
+          <Route path="/" element={<SchoolManagementLanding />} />
+          <Route path="/Contact" element={<Contact />} />
+           <Route path="/about" element={<AboutPage />} />
+          <Route path="/loginpage" element={<LoginPage />} />
+          <Route path="/Aluminai" element={<LoginPage />} />
           <Route path='/signuppage' element={<SignupPage />} />
-          <Route 
-            path="/dashboard" 
+          <Route
+            path="/dashboard"
             element={
               <ProtectedRoute>
                 <StudyCircleDashboard />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/GroupSession" 
+          <Route
+            path="/GroupSession"
             element={
               <ProtectedRoute>
                 <StudyGroupSession />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/ProfileSection" 
+          <Route
+            path="/ProfileSection"
             element={
               <ProtectedRoute>
                 <ProfileSection />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/TextSessionCreation" 
+          <Route
+            path="/TextSessionCreation"
             element={
               <ProtectedRoute>
                 <TextSessionCreation />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/TextSession" 
+          <Route
+            path="/TextSession"
             element={
               <ProtectedRoute>
                 <Textsession />
               </ProtectedRoute>
-            } 
+            }
           />
           {/* Add the new route */}
-          <Route 
-            path="/SessionTypeSelection" 
+          <Route
+            path="/SessionTypeSelection"
             element={
               <ProtectedRoute>
                 <SessionTypeSelection />
               </ProtectedRoute>
-            } 
+            }
           />
         </Routes>
       </div>

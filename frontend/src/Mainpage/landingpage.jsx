@@ -162,7 +162,7 @@ const SchoolManagementLanding = () => {
                                 <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
-                                    onClick={() => handleNavigation('/register')}
+                                    onClick={() => handleNavigation('/loginpage')}
                                     className={`px-6 py-3 rounded-lg font-bold transition-all duration-200 ${currentTheme.button} border ${currentTheme.border}`}
                                 >
                                     Register

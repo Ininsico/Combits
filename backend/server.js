@@ -1659,7 +1659,257 @@ app.get('/api/user/sessions', async (req, res) => {
         });
     }
 });
+// Add this route to server.js - THE MISSING ENDPOINT!
+app.post('/api/sessions/create', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided'
+            });
+        }
 
+        const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+        const user = await User.findById(decoded.userId);
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        const {
+            title,
+            sessionType,
+            description,
+            department,
+            location,
+            schedule,
+            studyTopic,
+            courseCode,
+            maxParticipants,
+            requirements
+        } = req.body;
+
+        console.log('Received session data:', req.body);
+
+        // Generate unique join code
+        const generateJoinCode = () => {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        };
+
+        let joinCode;
+        let isUnique = false;
+        
+        while (!isUnique) {
+            joinCode = generateJoinCode();
+            const existingSession = await Session.findOne({ joinCode });
+            if (!existingSession) {
+                isUnique = true;
+            }
+        }
+
+        const sessionData = {
+            title,
+            sessionType,
+            description,
+            department,
+            location,
+            schedule,
+            studyTopic,
+            courseCode: courseCode || '',
+            maxParticipants: parseInt(maxParticipants),
+            requirements: requirements || '',
+            creator: user._id,
+            creatorName: user.fullName,
+            creatorEmail: user.email,
+            joinCode,
+            status: 'active',
+            currentParticipants: 1,
+            participants: [{
+                user: user._id,
+                name: user.fullName,
+                email: user.email,
+                status: 'approved',
+                joinedAt: new Date()
+            }]
+        };
+
+        console.log('Creating session with data:', sessionData);
+
+        const session = new Session(sessionData);
+        await session.save();
+
+        // Populate the session with creator info
+        await session.populate('creator', 'fullName email rollNo department');
+        await session.populate('participants.user', 'fullName email rollNo');
+
+        console.log(`✅ Session created successfully by ${user.fullName}: ${session.title}`);
+
+        res.json({
+            success: true,
+            message: 'Session created successfully!',
+            data: { 
+                session: {
+                    id: session._id,
+                    title: session.title,
+                    sessionType: session.sessionType,
+                    description: session.description,
+                    department: session.department,
+                    location: session.location,
+                    schedule: session.schedule,
+                    studyTopic: session.studyTopic,
+                    courseCode: session.courseCode,
+                    maxParticipants: session.maxParticipants,
+                    requirements: session.requirements,
+                    joinCode: session.joinCode,
+                    status: session.status,
+                    currentParticipants: session.currentParticipants,
+                    creator: session.creator,
+                    participants: session.participants,
+                    createdAt: session.createdAt
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error creating session:', error);
+        
+        // More detailed error logging
+        if (error.name === 'ValidationError') {
+            const errors = Object.values(error.errors).map(err => err.message);
+            return res.status(400).json({
+                success: false,
+                message: 'Validation error: ' + errors.join(', ')
+            });
+        }
+        
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: 'Session with this join code already exists'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: 'Server error creating session: ' + error.message
+        });
+    }
+});
+
+// 🚀 SESSION CREATION ENDPOINT - ADD THIS RIGHT BEFORE app.listen
+app.post('/api/sessions/create', async (req, res) => {
+    try {
+        console.log('🎯 Session creation endpoint hit!');
+        
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided'
+            });
+        }
+
+        // Decode token
+        let decoded;
+        try {
+            decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+        } catch (tokenError) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid token'
+            });
+        }
+
+        const user = await User.findById(decoded.userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        const {
+            title,
+            sessionType,
+            description,
+            department,
+            location,
+            schedule,
+            studyTopic,
+            courseCode,
+            maxParticipants,
+            requirements
+        } = req.body;
+
+        // Generate unique join code
+        const generateJoinCode = () => {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        };
+
+        let joinCode;
+        let isUnique = false;
+        
+        while (!isUnique) {
+            joinCode = generateJoinCode();
+            const existingSession = await Session.findOne({ joinCode });
+            if (!existingSession) {
+                isUnique = true;
+            }
+        }
+
+        const sessionData = {
+            title,
+            sessionType,
+            description,
+            department,
+            location,
+            schedule,
+            studyTopic,
+            courseCode: courseCode || '',
+            maxParticipants: parseInt(maxParticipants),
+            requirements: requirements || '',
+            creator: user._id,
+            creatorName: user.fullName,
+            creatorEmail: user.email,
+            joinCode,
+            status: 'active',
+            currentParticipants: 1,
+            participants: [{
+                user: user._id,
+                name: user.fullName,
+                email: user.email,
+                status: 'approved',
+                joinedAt: new Date()
+            }]
+        };
+
+        console.log('💾 Creating session:', sessionData);
+
+        const session = new Session(sessionData);
+        await session.save();
+
+        await session.populate('creator', 'fullName email rollNo department');
+
+        console.log('✅ Session created successfully!');
+
+        res.json({
+            success: true,
+            message: 'Session created successfully!',
+            data: { session }
+        });
+
+    } catch (error) {
+        console.error('❌ Session creation error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error: ' + error.message
+        });
+    }
+});
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Health check: http://localhost:${PORT}/api/health`);
