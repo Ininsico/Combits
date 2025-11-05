@@ -1,18 +1,21 @@
 // SessionTypeSelection.jsx
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const SessionTypeSelection = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Get user from location state or localStorage
+  const user = location.state?.user || JSON.parse(localStorage.getItem('user'));
 
   const handleVideoSession = () => {
-    // Redirect to external video session platform
     window.location.href = 'https://comsatsconnect.vercel.app/';
   };
 
   const handleTextSession = () => {
-    // Navigate directly to TextSession page
-    navigate('/TextSession');
+    // Pass user data to TextSession
+    navigate('/TextSession', { state: { user } });
   };
 
   const handleBack = () => {
@@ -33,6 +36,9 @@ const SessionTypeSelection = () => {
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">Create Session</h1>
           <p className="text-gray-400">Choose your session type</p>
+          {user && (
+            <p className="text-blue-400 text-sm mt-2">Logged in as: {user.fullName}</p>
+          )}
         </div>
 
         {/* Session Type Options */}

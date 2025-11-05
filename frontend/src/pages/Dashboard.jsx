@@ -13,17 +13,63 @@ const StudyCircleDashboard = () => {
     const location = useLocation();
     const navigate = useNavigate();
 
-    // Get user data from localStorage
+    // Get user data from localStorage and fetch sessions
     useEffect(() => {
         const initializeUser = () => {
             const savedUser = localStorage.getItem('user');
             if (savedUser) {
                 const userData = JSON.parse(savedUser);
                 setUser(userData);
+                fetchStudySessions();
+                fetchCommunities();
             } else {
-                // If no user data, redirect to login
                 navigate('/');
                 return;
+            }
+        };
+
+        const fetchStudySessions = async () => {
+            try {
+                const response = await fetch('http://localhost:5000/api/sessions');
+                const result = await response.json();
+                if (result.success) {
+                    setStudySessions(result.data.sessions || []);
+                }
+            } catch (error) {
+                console.error('Error fetching sessions:', error);
+                // For demo, use some mock data
+                setStudySessions([]);
+            }
+        };
+
+        const fetchCommunities = async () => {
+            try {
+                const response = await fetch('http://localhost:5000/api/communities');
+                const result = await response.json();
+                if (result.success) {
+                    setCommunities(result.data.communities || []);
+                }
+            } catch (error) {
+                console.error('Error fetching communities:', error);
+                // For demo, use some mock data
+                setCommunities([
+                    {
+                        id: 1,
+                        name: 'Calculus Study',
+                        description: 'Advanced calculus and mathematical analysis',
+                        members: 45,
+                        icon: '📚',
+                        isJoined: false
+                    },
+                    {
+                        id: 2,
+                        name: 'Computer Science',
+                        description: 'Programming and algorithms study group',
+                        members: 89,
+                        icon: '💻',
+                        isJoined: true
+                    }
+                ]);
             }
         };
 
@@ -38,8 +84,6 @@ const StudyCircleDashboard = () => {
     // Generate user avatar based on name if no avatar URL
     const getUserAvatar = (userData) => {
         if (userData.avatar) return userData.avatar;
-
-        // Use default picture from public folder
         return '/DefaultPic.jpeg';
     };
 
@@ -51,7 +95,8 @@ const StudyCircleDashboard = () => {
         return userData.rollNo ? `@${userData.rollNo}` : '@user';
     };
 
-    const handleLike = (sessionId) => {
+    const handleLike = async (sessionId) => {
+        // Optimistic update
         setStudySessions(sessions =>
             sessions.map(session =>
                 session.id === sessionId
@@ -75,7 +120,7 @@ const StudyCircleDashboard = () => {
         );
     };
 
-    const handleJoinCommunity = (communityId) => {
+    const handleJoinCommunity = async (communityId) => {
         setCommunities(communities =>
             communities.map(community =>
                 community.id === communityId
@@ -113,12 +158,46 @@ const StudyCircleDashboard = () => {
         setNewPost('');
     };
 
+    // In Dashboard.jsx - update the handleCreateSession function
     const handleCreateSession = () => {
-        navigate('/SessionTypeSelection');
+        navigate('/SessionTypeSelection', { state: { user } });
     };
 
     const handleProfileClick = () => {
         navigate('/ProfileSection');
+    };
+
+    const handleJoinSession = async (sessionId, isPrivate = false) => {
+        try {
+            if (isPrivate) {
+                // For private sessions, send join request
+                alert('Join request sent! Waiting for approval.');
+            } else {
+                // For public sessions, join directly
+                const response = await fetch(`http://localhost:5000/api/sessions/${sessionId}/join`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert('Successfully joined the session!');
+                    // Navigate to the session
+                    navigate(`/study-session/${sessionId}`);
+                } else {
+                    alert(result.message || 'Failed to join session');
+                }
+            }
+        } catch (error) {
+            console.error('Error joining session:', error);
+            alert('Failed to join session');
+        }
+    };
+
+    const handleOpenSession = (session) => {
+        navigate(`/study-session/${session._id || session.id}`, { state: { session } });
     };
 
     const Sidebar = () => (
@@ -209,19 +288,22 @@ const StudyCircleDashboard = () => {
     );
 
     const TweetCard = ({ session }) => (
-        <div className="border-b border-gray-700 hover:bg-gray-800 transition-colors duration-200 cursor-pointer">
+        <div
+            className="border-b border-gray-700 hover:bg-gray-800 transition-colors duration-200 cursor-pointer"
+            onClick={() => handleOpenSession(session)}
+        >
             <div className="p-4">
                 <div className="flex space-x-3">
                     <img
-                        src={session.creatorAvatar}
-                        alt={session.creator}
+                        src={session.creator?.avatar || '/DefaultPic.jpeg'}
+                        alt={session.creator?.fullName || 'Creator'}
                         className="w-12 h-12 rounded-full object-cover flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1">
-                            <span className="font-bold text-white">{session.creator}</span>
+                            <span className="font-bold text-white">{session.creator?.fullName || 'Unknown User'}</span>
                             <span className="text-gray-400">·</span>
-                            <span className="text-gray-400">{session.date}</span>
+                            <span className="text-gray-400">{new Date(session.date).toLocaleDateString()}</span>
                         </div>
 
                         <h3 className="text-white font-semibold mb-2">{session.title}</h3>
@@ -232,7 +314,7 @@ const StudyCircleDashboard = () => {
                             <div className="grid grid-cols-2 gap-2 text-sm">
                                 <div className="flex items-center space-x-2">
                                     <span className="text-gray-400">Time:</span>
-                                    <span className="text-white">{session.time}</span>
+                                    <span className="text-white">{session.startTime} - {session.endTime}</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <span className="text-gray-400">Location:</span>
@@ -240,50 +322,45 @@ const StudyCircleDashboard = () => {
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <span className="text-gray-400">Participants:</span>
-                                    <span className="text-white">{session.participants}/{session.maxParticipants}</span>
+                                    <span className="text-white">{session.currentParticipants?.length || 0}/{session.maxParticipants}</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                    <span className="text-gray-400">Community:</span>
-                                    <span className="text-blue-400">{session.community}</span>
+                                    <span className="text-gray-400">Subject:</span>
+                                    <span className="text-blue-400">{session.subject}</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Tags */}
                         <div className="flex flex-wrap gap-2 mb-3">
-                            {session.tags.map((tag, index) => (
+                            {session.tags?.map((tag, index) => (
                                 <span key={index} className="bg-blue-900 text-blue-200 px-2 py-1 rounded-full text-xs">
                                     #{tag}
                                 </span>
                             ))}
+                            <span className={`px-2 py-1 rounded-full text-xs ${session.isPublic ? 'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'}`}>
+                                {session.isPublic ? 'Public' : 'Private'}
+                            </span>
                         </div>
 
-                        {/* Engagement Stats */}
-                        <div className="flex justify-between max-w-md mt-3">
+                        {/* Join Button */}
+                        <div className="flex justify-between items-center">
+                            <div className="flex space-x-4 text-sm text-gray-400">
+                                <span>{session.upvotes?.length || 0} likes</span>
+                                <span>{session.comments?.length || 0} comments</span>
+                                <span>{session.views || 0} views</span>
+                            </div>
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    handleLike(session.id);
+                                    handleJoinSession(session._id || session.id, !session.isPublic);
                                 }}
-                                className={`flex items-center space-x-2 px-3 py-2 rounded-full transition-colors duration-200 group ${session.isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'
+                                className={`px-4 py-2 rounded-lg font-semibold transition-colors duration-200 ${!session.isPublic
+                                        ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                                        : 'bg-blue-600 hover:bg-blue-700 text-white'
                                     }`}
                             >
-                                <HeartIcon filled={session.isLiked} />
-                                <span className="text-sm group-hover:text-red-500">{session.upvotes}</span>
-                            </button>
-
-                            <button className="flex items-center space-x-2 px-3 py-2 rounded-full text-gray-400 hover:text-blue-500 transition-colors duration-200 group">
-                                <CommentIcon />
-                                <span className="text-sm group-hover:text-blue-500">{session.comments}</span>
-                            </button>
-
-                            <button className="flex items-center space-x-2 px-3 py-2 rounded-full text-gray-400 hover:text-green-500 transition-colors duration-200 group">
-                                <RepostIcon />
-                                <span className="text-sm group-hover:text-green-500">{session.reposts}</span>
-                            </button>
-
-                            <button className="flex items-center space-x-2 px-3 py-2 rounded-full text-gray-400 hover:text-blue-500 transition-colors duration-200 group">
-                                <ShareIcon />
+                                {!session.isPublic ? 'Request to Join' : 'Join Session'}
                             </button>
                         </div>
                     </div>
@@ -296,28 +373,31 @@ const StudyCircleDashboard = () => {
         <div className="rounded-2xl bg-gray-800 overflow-hidden">
             <h3 className="font-bold text-xl text-white p-4 border-b border-gray-700">Ongoing Sessions</h3>
             <div className="divide-y divide-gray-700">
-                {studySessions.length > 0 ? (
-                    studySessions.slice(0, 3).map((session) => (
-                        <div key={session.id} className="p-4 hover:bg-gray-700 transition-colors duration-200 cursor-pointer">
-                            <div className="flex items-start space-x-3">
-                                <div className="w-3 h-3 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                                <div className="flex-1 min-w-0">
-                                    <h4 className="font-semibold text-white text-sm mb-1">{session.title}</h4>
-                                    <p className="text-gray-400 text-xs mb-2">{session.community}</p>
-                                    <div className="flex items-center justify-between text-xs">
-                                        <span className="text-gray-400">{session.time}</span>
-                                        <span className="text-blue-400">{session.participants} joined</span>
-                                    </div>
-                                    <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
-                                        <div
-                                            className="bg-green-500 h-1.5 rounded-full"
-                                            style={{ width: `${(session.participants / session.maxParticipants) * 100}%` }}
-                                        ></div>
+                {studySessions.filter(session => session.status === 'ongoing').length > 0 ? (
+                    studySessions
+                        .filter(session => session.status === 'ongoing')
+                        .slice(0, 3)
+                        .map((session) => (
+                            <div key={session.id} className="p-4 hover:bg-gray-700 transition-colors duration-200 cursor-pointer">
+                                <div className="flex items-start space-x-3">
+                                    <div className="w-3 h-3 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-semibold text-white text-sm mb-1">{session.title}</h4>
+                                        <p className="text-gray-400 text-xs mb-2">{session.subject}</p>
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="text-gray-400">{session.startTime}</span>
+                                            <span className="text-blue-400">{session.currentParticipants?.length || 0} joined</span>
+                                        </div>
+                                        <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
+                                            <div
+                                                className="bg-green-500 h-1.5 rounded-full"
+                                                style={{ width: `${((session.currentParticipants?.length || 0) / session.maxParticipants) * 100}%` }}
+                                            ></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    ))
+                        ))
                 ) : (
                     <div className="p-6 text-center">
                         <p className="text-gray-400">No ongoing sessions</p>
@@ -357,17 +437,17 @@ const StudyCircleDashboard = () => {
                 <div className="divide-y divide-gray-700">
                     {communities.length > 0 ? (
                         communities.map((community) => (
-                            <div key={community.id} className="p-4 hover:bg-gray-700 transition-colors duration-200 cursor-pointer">
+                            <div key={community.id || community._id} className="p-4 hover:bg-gray-700 transition-colors duration-200 cursor-pointer">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center space-x-3">
                                         <span className="text-2xl">{community.icon}</span>
                                         <div>
                                             <h4 className="font-semibold text-white">{community.name}</h4>
-                                            <p className="text-sm text-gray-400">{community.members} members</p>
+                                            <p className="text-sm text-gray-400">{community.memberCount || community.members} members</p>
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => handleJoinCommunity(community.id)}
+                                        onClick={() => handleJoinCommunity(community.id || community._id)}
                                         className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors duration-200 ${community.isJoined
                                             ? 'bg-gray-700 text-white hover:bg-gray-600'
                                             : 'bg-blue-500 text-white hover:bg-blue-600'
@@ -444,7 +524,7 @@ const StudyCircleDashboard = () => {
             <div>
                 {studySessions.length > 0 ? (
                     studySessions.map(session => (
-                        <TweetCard key={session.id} session={session} />
+                        <TweetCard key={session._id || session.id} session={session} />
                     ))
                 ) : (
                     <div className="p-8 text-center">
@@ -465,37 +545,54 @@ const StudyCircleDashboard = () => {
     const ExploreView = () => (
         <div className="max-w-2xl border-x border-gray-700 min-h-screen">
             <div className="p-4 border-b border-gray-700 sticky top-0 bg-gray-900">
-                <h2 className="text-2xl font-bold text-white">Explore Communities</h2>
+                <h2 className="text-2xl font-bold text-white">Explore Sessions</h2>
             </div>
             <div className="p-6">
-                {communities.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {communities.map(community => (
-                            <div key={community.id} className="bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition-colors duration-200">
-                                <div className="flex items-center space-x-3 mb-3">
-                                    <span className="text-3xl">{community.icon}</span>
+                {studySessions.length > 0 ? (
+                    <div className="space-y-4">
+                        {studySessions.map(session => (
+                            <div key={session._id || session.id} className="bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition-colors duration-200">
+                                <div className="flex items-start justify-between mb-3">
                                     <div>
-                                        <h3 className="font-bold text-white">{community.name}</h3>
-                                        <p className="text-gray-400 text-sm">{community.members} members</p>
+                                        <h3 className="font-bold text-white text-lg">{session.title}</h3>
+                                        <p className="text-gray-400 text-sm">by {session.creator?.fullName || 'Unknown User'}</p>
                                     </div>
+                                    <span className={`px-2 py-1 rounded-full text-xs ${session.isPublic ? 'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'}`}>
+                                        {session.isPublic ? 'Public' : 'Private'}
+                                    </span>
                                 </div>
-                                <p className="text-gray-300 text-sm mb-3">{community.description}</p>
-                                <button
-                                    onClick={() => handleJoinCommunity(community.id)}
-                                    className={`w-full rounded-lg py-2 text-sm font-semibold transition-colors duration-200 ${community.isJoined
-                                        ? 'bg-gray-700 text-white hover:bg-gray-600'
-                                        : 'bg-blue-500 text-white hover:bg-blue-600'
-                                        }`}
-                                >
-                                    {community.isJoined ? 'Leave Community' : 'Join Community'}
-                                </button>
+                                <p className="text-gray-300 mb-3">{session.description}</p>
+                                <div className="grid grid-cols-2 gap-2 text-sm text-gray-400 mb-3">
+                                    <div>📅 {new Date(session.date).toLocaleDateString()}</div>
+                                    <div>⏰ {session.startTime} - {session.endTime}</div>
+                                    <div>📍 {session.location}</div>
+                                    <div>👥 {session.currentParticipants?.length || 0}/{session.maxParticipants}</div>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <div className="flex flex-wrap gap-1">
+                                        {session.tags?.map((tag, index) => (
+                                            <span key={index} className="bg-blue-900 text-blue-200 px-2 py-1 rounded-full text-xs">
+                                                #{tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <button
+                                        onClick={() => handleJoinSession(session._id || session.id, !session.isPublic)}
+                                        className={`px-4 py-2 rounded-lg font-semibold transition-colors duration-200 ${!session.isPublic
+                                                ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                            }`}
+                                    >
+                                        {!session.isPublic ? 'Request to Join' : 'Join Session'}
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
                 ) : (
                     <div className="text-center py-12">
-                        <div className="text-gray-400 text-lg mb-2">No communities available</div>
-                        <p className="text-gray-500">Communities will appear here when created</p>
+                        <div className="text-gray-400 text-lg mb-2">No sessions available</div>
+                        <p className="text-gray-500">Sessions will appear here when created</p>
                     </div>
                 )}
             </div>
@@ -581,7 +678,7 @@ const MessagesIcon = ({ className, active }) => (
 
 const CommunitiesIcon = ({ className, active }) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: active ? '#FFFFFF' : '#9CA3AF' }}>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2 : 1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2 : 1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
     </svg>
 );
 
@@ -635,13 +732,13 @@ const MediaIcon = ({ className }) => (
 
 const PollIcon = ({ className }) => (
     <svg className={className} fill="currentColor" viewBox="0 0 24 24">
-        <path d="M6 5c-1.1 0-2 .895-2 2s.9 2 2 2 2-.895 2-2-.9-2-2-2zM2 7c0-2.209 1.79-4 4-4s4 1.791 4 4-1.79 4-4 4-4-1.791-4-4zm20 1H12V6h10v2zM6 15c-1.1 0-2 .895-2 2s.9 2 2 2 2-.895 2-2-.9-2-2-2zm-4 2c0-2.209 1.79-4 4-4s4 1.791 4 4-1.79 4-4 4-4-1.791-4-4zm20 1H12v-2h10v2zM7 7c0 .552-.45 1-1 1s-1-.448-1-1 .45-1 1-1 1 .448 1 1z" />
+        <path d="M6 5c-1.1 0-2 .895-2 2s.9 2 2 2 2-.895 2-2-.9-2-2-2zM2 7c0-2.209 1.79-4 4-4s4 1.791 4 4-1.79 4-4 4-4-1.791-4-4zm20 1H12V6h10v2zM6 15c-1.1 0-2 .895-2 2s.9 2 2 2 2-.895 2-2-.9-2-2-2zm-4 2c0-2.209 1.79-4 4-4s4 1.791 4 4-1.79 4-4 4-4-1.791-4-4zm20 1H12v-2h10v2zM7 7c0 .552.45 1 1 1s1-.448 1-1-.45-1-1-1-1 .448-1 1z" />
     </svg>
 );
 
 const ScheduleIcon = ({ className }) => (
     <svg className={className} fill="currentColor" viewBox="0 0 24 24">
-        <path d="M6 3V2h2v1h6V2h2v1h1.5C18.88 3 20 4.119 20 5.5v2h-2v-2c0-.276-.22-.5-.5-.5H16v1h-2V5H8v1H6V5H4.5c-.28 0-.5.224-.5.5v12c0 .276.22.5.5.5h3v2h-3C3.12 20 2 18.881 2 17.5v-12C2 4.119 3.12 3 4.5 3H6zm9.5 8c-2.49 0-4.5 2.015-4.5 4.5s2.01 4.5 4.5 4.5 4.5-2.015 4.5-4.5-2.01-4.5-4.5-4.5zM9 15.5C9 11.91 11.91 9 15.5 9s6.5 2.91 6.5 6.5-2.91 6.5-6.5 6.5S9 19.09 9 15.5zm5.5-2.5h2v2.086l1.71 1.707-1.42 1.414-2.29-2.293V13z" />
+        <path d="M8 7V3v4zM16 7V3v4zM5 12h14H5zm15 5H4h16zm-4 3H8h8zm5-8v10c0 2.21-1.79 4-4 4H6c-2.21 0-4-1.79-4-4V9c0-2.21 1.79-4 4-4h1V3c0-.55.45-1 1-1s1 .45 1 1v2h6V3c0-.55.45-1 1-1s1 .45 1 1v2h1c2.21 0 4 1.79 4 4z" />
     </svg>
 );
 

@@ -935,6 +935,730 @@ app.use((req, res) => {
         message: 'Route not found: ' + req.method + ' ' + req.url
     });
 });
+// Add to server.js after the existing schemas
+
+// Text Session Schema
+const textSessionSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    description: {
+        type: String,
+        required: true
+    },
+    courseCode: {
+        type: String,
+        required: true
+    },
+    department: {
+        type: String,
+        required: true
+    },
+    time: {
+        type: String,
+        required: true
+    },
+    location: {
+        type: String,
+        required: true
+    },
+    schedule: {
+        type: String
+    },
+    requirements: {
+        type: String
+    },
+    creator: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    maxParticipants: {
+        type: Number,
+        default: 10,
+        min: 1,
+        max: 50
+    },
+    currentParticipants: [{
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        joinedAt: {
+            type: Date,
+            default: Date.now
+        },
+        status: {
+            type: String,
+            enum: ['pending', 'approved', 'rejected'],
+            default: 'approved'
+        }
+    }],
+    isPrivate: {
+        type: Boolean,
+        default: false
+    },
+    requiresApproval: {
+        type: Boolean,
+        default: false
+    },
+    joinCode: {
+        type: String,
+        unique: true
+    },
+    status: {
+        type: String,
+        enum: ['active', 'ended', 'cancelled'],
+        default: 'active'
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+// Message Schema for Text Sessions
+const messageSchema = new mongoose.Schema({
+    sessionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'TextSession',
+        required: true
+    },
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    text: {
+        type: String,
+        required: true
+    },
+    type: {
+        type: String,
+        enum: ['message', 'system'],
+        default: 'message'
+    },
+    timestamp: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+// Question Schema for Q&A
+const questionSchema = new mongoose.Schema({
+    sessionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'TextSession',
+        required: true
+    },
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    text: {
+        type: String,
+        required: true
+    },
+    answers: [{
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        text: {
+            type: String,
+            required: true
+        },
+        timestamp: {
+            type: Date,
+            default: Date.now
+        }
+    }],
+    timestamp: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+// Attendance Schema
+const attendanceSchema = new mongoose.Schema({
+    sessionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'TextSession',
+        required: true
+    },
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ['present', 'absent'],
+        required: true
+    },
+    timestamp: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+const TextSession = mongoose.model('TextSession', textSessionSchema);
+const Message = mongoose.model('Message', messageSchema);
+const Question = mongoose.model('Question', questionSchema);
+const Attendance = mongoose.model('Attendance', attendanceSchema);
+
+// Generate unique join code
+const generateJoinCode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+};
+
+// Text Session Routes
+app.post('/api/sessions/create-text', async (req, res) => {
+    try {
+        const {
+            title,
+            description,
+            courseCode,
+            department,
+            time,
+            location,
+            schedule,
+            requirements,
+            maxParticipants,
+            isPrivate,
+            requiresApproval,
+            creator
+        } = req.body;
+
+        let joinCode;
+        let isUnique = false;
+        
+        // Generate unique join code
+        while (!isUnique) {
+            joinCode = generateJoinCode();
+            const existingSession = await TextSession.findOne({ joinCode });
+            if (!existingSession) {
+                isUnique = true;
+            }
+        }
+
+        const session = new TextSession({
+            title,
+            description,
+            courseCode,
+            department,
+            time,
+            location,
+            schedule,
+            requirements,
+            maxParticipants,
+            isPrivate,
+            requiresApproval,
+            joinCode,
+            creator,
+            currentParticipants: [{
+                user: creator,
+                status: 'approved'
+            }]
+        });
+
+        await session.save();
+
+        // Populate creator info
+        await session.populate('creator', 'fullName email rollNo');
+
+        res.status(201).json({
+            success: true,
+            message: 'Text session created successfully',
+            data: { session }
+        });
+
+    } catch (error) {
+        console.error('Create text session error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error creating text session'
+        });
+    }
+});
+
+app.get('/api/sessions/:id', async (req, res) => {
+    try {
+        const session = await TextSession.findById(req.params.id)
+            .populate('creator', 'fullName email rollNo avatar')
+            .populate('currentParticipants.user', 'fullName email rollNo avatar');
+
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                message: 'Session not found'
+            });
+        }
+
+        const messages = await Message.find({ sessionId: req.params.id })
+            .populate('user', 'fullName avatar')
+            .sort({ timestamp: 1 });
+
+        const questions = await Question.find({ sessionId: req.params.id })
+            .populate('user', 'fullName avatar')
+            .populate('answers.user', 'fullName avatar')
+            .sort({ timestamp: -1 });
+
+        const attendance = await Attendance.find({ sessionId: req.params.id })
+            .populate('user', 'fullName')
+            .sort({ timestamp: -1 });
+
+        res.json({
+            success: true,
+            data: {
+                session,
+                messages,
+                questions,
+                attendance
+            }
+        });
+
+    } catch (error) {
+        console.error('Get session error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error fetching session'
+        });
+    }
+});
+
+app.post('/api/sessions/messages', async (req, res) => {
+    try {
+        const { sessionId, text, type = 'message' } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided'
+            });
+        }
+
+        const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+        const user = await User.findById(decoded.userId);
+
+        const message = new Message({
+            sessionId,
+            user: user._id,
+            text,
+            type
+        });
+
+        await message.save();
+        await message.populate('user', 'fullName avatar');
+
+        res.status(201).json({
+            success: true,
+            message: 'Message sent successfully',
+            data: { message }
+        });
+
+    } catch (error) {
+        console.error('Send message error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error sending message'
+        });
+    }
+});
+
+app.post('/api/sessions/questions', async (req, res) => {
+    try {
+        const { sessionId, question } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided'
+            });
+        }
+
+        const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+        const user = await User.findById(decoded.userId);
+
+        const newQuestion = new Question({
+            sessionId,
+            user: user._id,
+            text: question
+        });
+
+        await newQuestion.save();
+        await newQuestion.populate('user', 'fullName avatar');
+
+        res.status(201).json({
+            success: true,
+            message: 'Question posted successfully',
+            data: { question: newQuestion }
+        });
+
+    } catch (error) {
+        console.error('Post question error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error posting question'
+        });
+    }
+});
+
+app.post('/api/sessions/attendance', async (req, res) => {
+    try {
+        const { sessionId, status } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided'
+            });
+        }
+
+        const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+        const user = await User.findById(decoded.userId);
+
+        // Remove existing attendance for this user in this session
+        await Attendance.deleteOne({ 
+            sessionId, 
+            user: user._id 
+        });
+
+        const attendance = new Attendance({
+            sessionId,
+            user: user._id,
+            status
+        });
+
+        await attendance.save();
+
+        res.json({
+            success: true,
+            message: 'Attendance marked successfully',
+            data: { attendance }
+        });
+
+    } catch (error) {
+        console.error('Mark attendance error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error marking attendance'
+        });
+    }
+});
+
+app.post('/api/sessions/join-with-code', async (req, res) => {
+    try {
+        const { joinCode } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided'
+            });
+        }
+
+        const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+        const user = await User.findById(decoded.userId);
+
+        const session = await TextSession.findOne({ joinCode })
+            .populate('creator', 'fullName email rollNo avatar')
+            .populate('currentParticipants.user', 'fullName email rollNo avatar');
+
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                message: 'Session not found with this code'
+            });
+        }
+
+        // Check if user is already a participant
+        const existingParticipant = session.currentParticipants.find(
+            p => p.user._id.toString() === user._id.toString()
+        );
+
+        if (existingParticipant) {
+            if (existingParticipant.status === 'pending') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Your join request is pending approval'
+                });
+            }
+            if (existingParticipant.status === 'approved') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'You are already a member of this session'
+                });
+            }
+        }
+
+        // Check if session is full
+        const approvedParticipants = session.currentParticipants.filter(
+            p => p.status === 'approved'
+        );
+        if (approvedParticipants.length >= session.maxParticipants) {
+            return res.status(400).json({
+                success: false,
+                message: 'Session is full'
+            });
+        }
+
+        // Add user to participants
+        const participantStatus = session.requiresApproval ? 'pending' : 'approved';
+        
+        session.currentParticipants.push({
+            user: user._id,
+            status: participantStatus
+        });
+
+        await session.save();
+
+        if (session.requiresApproval) {
+            return res.json({
+                success: true,
+                message: 'Join request sent. Waiting for approval.',
+                data: { session }
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Successfully joined the session',
+            data: { session }
+        });
+
+    } catch (error) {
+        console.error('Join session error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error joining session'
+        });
+    }
+});
+
+// Get user's text sessions
+app.get('/api/user/text-sessions', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided'
+            });
+        }
+
+        const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+        const user = await User.findById(decoded.userId);
+
+        const sessions = await TextSession.find({
+            'currentParticipants.user': user._id,
+            'currentParticipants.status': 'approved'
+        })
+        .populate('creator', 'fullName avatar')
+        .populate('currentParticipants.user', 'fullName avatar')
+        .sort({ createdAt: -1 });
+
+        res.json({
+            success: true,
+            data: { sessions }
+        });
+
+    } catch (error) {
+        console.error('Get user sessions error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error fetching sessions'
+        });
+    }
+});
+// Add this to server.js after the other schemas
+const sessionSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    sessionType: { type: String, enum: ['public', 'private'], default: 'public' },
+    description: { type: String, required: true },
+    department: { type: String, required: true },
+    location: { type: String, required: true },
+    schedule: { type: String, required: true },
+    studyTopic: { type: String, required: true },
+    courseCode: { type: String },
+    maxParticipants: { type: Number, required: true },
+    requirements: { type: String },
+    
+    // Creator info
+    creator: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    creatorName: { type: String, required: true },
+    creatorEmail: { type: String, required: true },
+    
+    // Session management
+    joinCode: { type: String, required: true, unique: true },
+    status: { type: String, enum: ['active', 'inactive', 'completed'], default: 'active' },
+    currentParticipants: { type: Number, default: 1 },
+    
+    // Participants array
+    participants: [{
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        name: String,
+        email: String,
+        status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+        joinedAt: { type: Date, default: Date.now }
+    }],
+    
+    // Timestamps
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
+});
+
+const Session = mongoose.model('Session', sessionSchema);
+// Add this route to server.js after the other routes
+app.post('/api/sessions/create', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided'
+            });
+        }
+
+        const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+        const user = await User.findById(decoded.userId);
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        const {
+            title,
+            sessionType,
+            description,
+            department,
+            location,
+            schedule,
+            studyTopic,
+            courseCode,
+            maxParticipants,
+            requirements
+        } = req.body;
+
+        // Generate unique join code
+        const generateJoinCode = () => {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        };
+
+        let joinCode;
+        let isUnique = false;
+        
+        while (!isUnique) {
+            joinCode = generateJoinCode();
+            const existingSession = await Session.findOne({ joinCode });
+            if (!existingSession) {
+                isUnique = true;
+            }
+        }
+
+        const sessionData = {
+            title,
+            sessionType,
+            description,
+            department,
+            location,
+            schedule,
+            studyTopic,
+            courseCode: courseCode || '',
+            maxParticipants: parseInt(maxParticipants),
+            requirements: requirements || '',
+            creator: user._id,
+            creatorName: user.fullName,
+            creatorEmail: user.email,
+            joinCode,
+            status: 'active',
+            currentParticipants: 1,
+            participants: [{
+                user: user._id,
+                name: user.fullName,
+                email: user.email,
+                status: 'approved',
+                joinedAt: new Date()
+            }]
+        };
+
+        const session = new Session(sessionData);
+        await session.save();
+
+        // Populate the session with creator info
+        await session.populate('creator', 'fullName email rollNo department');
+        await session.populate('participants.user', 'fullName email rollNo');
+
+        console.log(`Session created by ${user.fullName}: ${session.title}`);
+
+        res.json({
+            success: true,
+            message: 'Session created successfully',
+            data: { session }
+        });
+    } catch (error) {
+        console.error('Error creating session:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating session: ' + error.message
+        });
+    }
+});
+// Add this route to get user's sessions
+app.get('/api/user/sessions', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided'
+            });
+        }
+
+        const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+        const user = await User.findById(decoded.userId);
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Get sessions where user is creator OR participant
+        const sessions = await Session.find({
+            $or: [
+                { creator: user._id },
+                { 'participants.user': user._id, 'participants.status': 'approved' }
+            ]
+        })
+        .populate('creator', 'fullName email rollNo department')
+        .populate('participants.user', 'fullName email rollNo')
+        .sort({ createdAt: -1 });
+
+        res.json({
+            success: true,
+            data: { sessions }
+        });
+    } catch (error) {
+        console.error('Error fetching user sessions:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching sessions'
+        });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
